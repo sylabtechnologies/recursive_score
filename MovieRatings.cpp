@@ -1,5 +1,4 @@
 // MovieRatings.cpp : recursive negative scores
-// ** UNDER CONSTRUCTION 2/18 **
 
 #include "stdafx.h"
 #include <iostream>
@@ -14,8 +13,8 @@ typedef vector<int> MyVec;
 typedef MyVec::iterator MyIter;
 
 #define NOT_LOCKED	0
-#define LEFT_LOCK   -1
-#define RIGHT_LOCK	1
+#define RIGHT_LOCK	1	// fix the rightmost score
+#define LEFT_LOCK   -1	// fix the leftmost score
 
 int max_ratings(MyVec);
 bool is_negative(int);
@@ -85,6 +84,7 @@ int max_ratings(MyVec myratings)
 			else
 			{
 				start = finish; finish += 1;
+				current_sign = is_negative(*start);
 				break;
 			}
 		}
@@ -93,8 +93,6 @@ int max_ratings(MyVec myratings)
 			result += neg_score(NOT_LOCKED, next_batch);
 		else
 		    result += std::accumulate(next_batch.begin(), next_batch.end(), 0);
-
-		current_sign = is_negative(*start);
 	}
 
 	return result;
@@ -115,14 +113,18 @@ void process_error(const string msg)
 	exit(1);
 }
 
-// find all combinations through recursion
+// all combinations through recursion
 int neg_score(const int lock, MyVec negatives)
 {
 	if (negatives.size() == 0)
 		process_error("neg_score 0 args");
 
 	if (negatives.size() == 1)
-		return 0;
+	{
+		if (lock == NOT_LOCKED) return 0;
+		if (lock == LEFT_LOCK || lock == RIGHT_LOCK)
+			return negatives[0];
+	}
 
 	if (negatives.size() == 2)
 	{
@@ -136,39 +138,41 @@ int neg_score(const int lock, MyVec negatives)
 			process_error("internal neg_score error #2");
 	}
 
-	// truncate the lock for longer vectors & recurse
+	// recursion w/ removing the lock, size => 3
 	if (lock == LEFT_LOCK)
 	{
-		MyVec left_vec;
-		std::copy(negatives.begin(), negatives.end() - 1, std::back_inserter(left_vec));
-		return neg_score(NOT_LOCKED, left_vec);
+		int locked_score = *(negatives.begin());
+		MyVec on_the_right;
+		std::copy(negatives.begin() + 1, negatives.end(), std::back_inserter(on_the_right));
+		return locked_score + neg_score(NOT_LOCKED, on_the_right);
 	}
 	else if (lock == RIGHT_LOCK)
 	{
-		MyVec right_vec;
-		std::copy(negatives.begin() + 1, negatives.end(), std::back_inserter(right_vec));
-		return neg_score(NOT_LOCKED, right_vec);
+		int locked_score = *(negatives.end() - 1);
+		MyVec on_the_left;
+		std::copy(negatives.begin(), negatives.end() - 1, std::back_inserter(on_the_left));
+		return locked_score + neg_score(NOT_LOCKED, on_the_left);
 	}
 
 	MyVec allresults;
 
-	// try all elements
+	// skip the current element, use recursion on the left, on the right
 	for (MyIter iter = negatives.begin(); iter != negatives.end() ; ++iter)
 	{
-		int next_result = *iter;
+		int next_result = 0;	// skip current score
 		
 		if (iter != negatives.begin())
 		{
-			MyVec left_vec;
-			std::copy(negatives.begin(), iter, std::back_inserter(left_vec));
-			next_result += neg_score(LEFT_LOCK, left_vec);
+			MyVec on_the_left;
+			std::copy(negatives.begin(), iter, std::back_inserter(on_the_left));
+			next_result += neg_score(RIGHT_LOCK, on_the_left);
 		}
 
 		if (iter + 1 != negatives.end())
 		{
-			MyVec right_vec;
-			std::copy(iter + 1, negatives.end(), std::back_inserter(right_vec));
-			next_result += neg_score(RIGHT_LOCK, right_vec); // must be right_score
+			MyVec on_the_right;
+			std::copy(iter + 1, negatives.end(), std::back_inserter(on_the_right));
+			next_result += neg_score(LEFT_LOCK, on_the_right); // must be right_score
 		}
 
 		allresults.push_back(next_result);
